@@ -278,12 +278,9 @@ Class v_JSON
 	End Function
 
 	Private Function VerifyContent(varContent)
-		Dim blnVerified, _
-			strContentType
+		Dim blnVerified 
 
-		strContentType = TypeName(varContent)
-
-		Select Case strContentType
+		Select Case TypeName(varContent)
 			Case "String", "Null", "Boolean", "Integer", "Long", "Single", "Double", "Date", "Currency":
 				blnVerified = True
 			Case "v_JSON":
