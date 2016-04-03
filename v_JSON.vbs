@@ -1,23 +1,39 @@
 Include "v_Script"
 
 Class v_JSON
-	Private pScript, _
-		pJSON
+	Private pScript
 
 	Private Sub Class_Initialize()
 		Set pScript = New v_Script
-    		Set pJSON = CreateObject("Scripting.Dictionary")
 
 		With pScript
 			.Language = "JScript"
-			.AddCode("function getKeys(jsonObj) { var keys = new Array(); for (var i in jsonObj) { keys.push(i); } return keys; }")
-			.AddCode("function getKeyValue(jsonObj, key) { return jsonObj[key]; }")
-			.AddCode("function getKeyType(jsonObj, key) { return typeof(jsonObj[key]); }")
-			.AddCode("function isArray(jsonObj) { return Object.prototype.toString.call(jsonObj) === '[object Array]'; }")
+			.AddCode("var json = {};")
+			.AddCode("function getKeys() { var keys = []; for (var k in json) { keys.push(k); } return keys; }")
+			.AddCode("function getItems() { var items = []; for(var k in json) { items.push(json[k]); } return items; }")
+			.AddCode("function getItemValue(key) { return json[key]; }")
+			.AddCode("function getItemType(key) { return getType(json[key]); }")
+			.AddCode("function getType(obj) { if (obj === null) { return 'null'; } else if (isObject(obj)) { return 'object'; } else if (isArray(obj)) { return 'array'; } else { return typeof(obj); } }")
+			.AddCode("function getCount() { var count = 0; for (k in json) { if(json.hasOwnProperty(k)) { count++; } } return count; }")
+			.AddCode("function isObject(obj) { if (obj === null) { return false; } else { return Object.prototype.toString.call(obj) === '[object Object]'; } }")
+			.AddCode("function isArray(obj) { return Object.prototype.toString.call(obj) === '[object Array]'; }")
+			.AddCode("function arrayContains(arr, obj) { var i = arr.length; while (i--) { if (arr[i] === obj) { return true; } } return false; }")
 			.AddCode("function getArrayLength(jsonArr) { return jsonArr.length; }")
 			.AddCode("function getArrayItem(jsonArr, i) { return jsonArr[i]; }")
-			.AddCode("function getArrayItemType(jsonArr, i) { return typeof(jsonArr[i]); }")
-			.AddCode("function stringify(jsonObj) { var t = typeof(jsonObj); if (t != ""object"" || jsonObj === null) { if (t == ""string"") jsonObj = '""'+jsonObj+'""'; return String(jsonObj); } else { var n, v, jsonStr = [], arr = (jsonObj && jsonObj.constructor == Array); for (n in jsonObj) { v = jsonObj[n]; t = typeof(v); if (t == ""string"") v = '""'+v+'""'; else if (t == ""object"" && v !== null) v = stringify(v); jsonStr.push((arr ? """" : '""' + n + '"":') + String(v)); } return (arr ? ""["" : ""{"") + String(jsonStr) + (arr ? ""]"" : ""}""); } };")
+			.AddCode("function getArrayItemType(jsonArr, i) { return getType(jsonArr[i]); }")
+			.AddCode("function exists(key, value, deep) { if (deep) { return searchContents(json, key, value).length > 0; } else { return json[key] == value; } }")
+			.AddCode("function valueExists(value, deep) { if (deep) { return searchContents(json, '', value).length > 0; } else { for (var k in json) { if (json[k] == value) { return true; } } return false; } }")
+			.AddCode("function keyExists(key, deep) { if (deep) { return searchContents(json, key, '').length > 0; } else { return key in json; } }")
+			.AddCode("function find(key, value) { return searchContents(json, key, value)[0]; }")
+			.AddCode("function findKey(key) { return searchContents(json, key, '')[0]; }")
+			.AddCode("function findValue(value) { return searchContents(json, '', value)[0]; }")
+			.AddCode("function findAll(key, value) { return searchContents(json, key, value); }")
+			.AddCode("function findAllKeys(key) { return searchContents(json, key, ''); }")
+			.AddCode("function findAllValues(value) { return searchContents(json, '', value); }")
+			.AddCode("function searchContents(obj, key, value) { var resultSet = []; for (var i in obj) { if (!obj.hasOwnProperty(i)) continue; if (i == key && obj[i] == value || i == key && value == '') { resultSet.push(obj); } else if (obj[i] == value && key == ''){ if (!arrayContains(resultSet, obj)) { resultSet.push(obj); } } if (typeof obj[i] == 'object') { resultSet = resultSet.concat(searchContents(obj[i], key, value)); } } return resultSet; }")
+			.AddCode("function deleteItem(key) { delete json[key]; }")
+			.AddCode("function clear() { for(var member in json) { delete json[member]; } json = {}; }")
+			.AddCode("function stringify(jsonObj) { var t = typeof(jsonObj); if (t != ""object"" || jsonObj === null) { if (t == ""string"") jsonObj = '""'+jsonObj+'""'; return String(jsonObj); } else { var n, v, jsonStr = [], arr = (jsonObj && jsonObj.constructor == Array); for (n in jsonObj) { v = jsonObj[n]; t = typeof(v); if (t == ""string"") v = '""'+v.replace(/""/g, '\\""').replace(/\r?\n|\r/g, '')+'""'; else if (t == ""object"" && v !== null) v = stringify(v); jsonStr.push((arr ? """" : '""' + n + '"":') + String(v)); } return (arr ? ""["" : ""{"") + String(jsonStr) + (arr ? ""]"" : ""}""); } };")
 		End With
 	End Sub
 
@@ -26,63 +42,71 @@ Class v_JSON
 
 
 	Public Default Property Get Item(strKey)
-    		If IsObject(pJSON(strKey)) Then
-        		Set Item = pJSON(strKey)
-    		Else
-        		Item = pJSON(strKey)
-    		End If
+		If pScript.Run("getItemType", Array(strKey)) = "object" Then
+			Set Item = Deserialize(pScript.Run("getItemValue", Array(strKey)))
+		Else
+			Item = Deserialize(pScript.Run("getItemValue", Array(strKey)))
+		End If
 	End Property
 
 	Public Property Get Items()
-		Items = pJSON.Items
-	End Property
-
-	Public Property Let Key(strKey, strNewKey)
-		pJSON.Key(strKey) = strNewKey
+		Items = Deserialize(pScript.Run("getItems", Array()))
 	End Property
 
 	Public Property Get Keys()
-		Keys = pJSON.Keys
+		Keys = Deserialize(pScript.Run("getKeys", Array()))
 	End Property
 
 	Public Property Get Count()
-		Count = pJSON.Count 
+		Count = pScript.Run("getCount", Array())
 	End Property
 
 	
 	' Methods
 
 
-	Public Sub Add(strKey, varItem)
-		If VerifyContent(varItem) And Not pJSON.Exists(strKey) Then pJSON.Add strKey, varItem
-	End Sub
-
-	Public Sub Remove(strKey)
-		pJSON.Remove(strKey)
-	End Sub
-
 	Public Sub Clear()
-		pJSON.RemoveAll()
+		pScript.Run "clear", Array()
 	End Sub
 
-	Public Function Exists(strKey, blnDeep)
-		If blnDeep Then
-			If IsEmpty(SearchContent(Me, strKey)) Then
-				Exists = False
-			Else
-				Exists = True
-			End If
+	Public Function Exists(strKey, varValue, blnDeep)
+		Exists = pScript.Run("exists", Array(strKey, varValue, blnDeep))
+	End Function
+
+	Public Function KeyExists(strKey, blnDeep)
+		KeyExists = pScript.Run("keyExists", Array(strKey, blnDeep))
+	End Function
+
+	Public Function ValueExists(varValue, blnDeep)
+		ValueExists = pScript.Run("valueExists", Array(varValue, blnDeep))
+	End Function
+
+	Public Function Find(strKey, varValue)
+		Set Find = Deserialize(pScript.Run("find", Array(strKey, varValue)))
+	End Function
+
+	Public Function FindKey(strKey)
+		Set FindKey = Deserialize(pScript.Run("findKey", Array(strKey)))
+	End Function
+
+	Public Function FindValue(varValue)
+		If pScript.Run("getType", Array(pScript.Run("findValue", Array(varValue)))) = "object" Then
+			Set FindValue = Deserialize(pScript.Run("findValue", Array(varValue)))
 		Else
-			Exists = pJSON.Exists(strKey)
+			FindValue = Deserialize(pScript.Run("findValue", Array(varValue)))
 		End If
 	End Function
 
-	Public Function Find(strKey)
-		If IsObject(SearchContent(Me, strKey)) Then
-			Set Find = SearchContent(Me, strKey)
-		Else
-			Find = SearchContent(Me, strKey)
-		End If	
+	Public Function FindAll(strKey, varValue)
+		FindAll = Deserialize(pScript.Run("findAll", Array(strKey, varValue)))
+	End Function
+
+	Public Function FindAllKeys(strKey)
+		FindAllKeys = Deserialize(pScript.Run("findAllKeys", Array(strKey)))
+	End Function
+
+	Public Function FindAllValues(varValue)
+		FindAllValues = Deserialize(pScript.Run("findAllValues", Array(varValue)))
 	End Function
 
 	Public Sub Load(strFile)
@@ -108,264 +132,70 @@ Class v_JSON
 			.WriteLine Me.ToString()
 			.Close()
 		End With
+
+		Set objFSO = Nothing
+		Set objJsonFile = Nothing
 	End Sub
 
 	Public Sub FromString(strJSON)
-		If TypeName(strJSON) = "String" Then
-			pScript.Variable("json") = strJSON
-			Serialize pScript.Variable("json")
-		End If
+		If TypeName(strJSON) = "String" Then pScript.Variable("json") = strJSON
 	End Sub
 
 	Public Function ToString()
-		ToString = Deserialize(pJSON)
+		ToString = pScript.Run("stringify", Array(pScript.Variable("json")))
 	End Function
 
 	
 	' Helper Methods
 
 
-	Private Sub Serialize(objJSON)
-		Dim k
-
-		For Each k In GetKeys(objJSON)
-			Select Case GetKeyType(objJSON, k)
-				Case "object":
-					pJSON.Add k, CreateJSONObject(GetKeyValue(objJSON, k))
-				Case "array":
-					pJSON.Add k, CreateJSONArray(GetKeyValue(objJSON, k))
-				Case "null":
-					pJSON.Add k, Null
-				Case "string", "number", "boolean":
-					pJSON.Add k, GetKeyValue(objJSON, k)
-			End Select
-		Next
-	End Sub
-
-	Private Function Deserialize(varJSON)
-		Dim strReturn
-
-		Select Case TypeName(varJSON)
-			Case "v_JSON":
-				strReturn = varJSON.ToString()
-			Case "Dictionary":
-				Dim key
-
-				For Each key in varJSON.Keys
-					Select Case TypeName(varJSON.Item(key))
-						Case "v_JSON", "ArrayList":
-							strReturn = strReturn & ", """ & key & """: " & Deserialize(varJSON.Item(key))
-						Case "Null":
-							strReturn = strReturn & ", """ & key & """: null"
-						Case "String":
-							strReturn = strReturn & ", """ & key & """: """ & varJSON.Item(key) & """"
-						Case "Boolean":
-							strReturn = strReturn & ", """ & key & """: " & LCase(varJSON.Item(key))
-						Case Else:
-							strReturn = strReturn & ", """ & key & """: " & varJSON.Item(key)
-					End Select
-				Next
-
-				strReturn = "{ " & Right(strReturn, Len(strReturn) - 2)
-				strReturn = strReturn & " }"
-			Case "ArrayList":
-				Dim i
-
-				For i = 0 To varJSON.Count - 1
-					Select Case TypeName(varJSON.Item(i))
-						Case "v_JSON", "ArrayList":
-							strReturn = strReturn & ", " & Deserialize(varJSON.Item(i))
-						Case "Null":
-							strReturn = strReturn & ", null"
-						Case "String":
-							strReturn = strReturn & ", """ & varJSON.Item(i) & """"
-						Case "Boolean":
-							strReturn = strReturn & ", " & LCase(varJSON.Item(i))
-						Case Else:
-							strReturn = strReturn & ", " & varJSON.Item(i)
-					End Select
-				Next
-
-				strReturn = "[ " & Right(strReturn, Len(strReturn) - 2)
-				strReturn = strReturn & " ]"
+	Private Function Deserialize(varItem)
+		Select Case pScript.Run("getType", Array(varItem))
+			Case "object":
+				Set Deserialize = JSONObject(varItem)
+			Case "array":
+				Deserialize = JSONArray(varItem)
+			Case "null":
+				Deserialize = Null
+			Case "string", "number", "boolean":
+				Deserialize = varItem
 		End Select
-
-		Deserialize = strReturn
 	End Function
 
-	Private Function GetKeys(objJSON)
-		GetKeys = Split(pScript.Run("getKeys", Array(objJSON)), ",")
-	End Function
-
-	Private Function GetKeyType(objJSON, strKey)
-		If pScript.Run("getKeyType", Array(objJSON, strKey)) = "object" Then
-			If TypeName(GetKeyValue(objJSON, strKey)) = "Null" Then
-				GetKeyType = "null"
-			ElseIf IsArray(GetKeyValue(objJSON, strKey)) Then
-				GetKeyType = "array"
-			Else
-				GetKeyType = "object"
-			End If
-		Else
-			GetKeyType = pScript.Run("getKeyType", Array(objJSON, strKey))
-		End If
-	End Function
-
-	Private Function GetKeyValue(objJSON, strKey)
-		If IsObject(pScript.Run("getKeyValue", Array(objJSON, strKey))) Then
-			Set GetKeyValue = pScript.Run("getKeyValue", Array(objJSON, strKey))
-		Else
-			GetKeyValue = pScript.Run("getKeyValue", Array(objJSON, strKey))
-		End If
-	End Function
-
-	Private Function IsArray(objJSON)
-		IsArray = pScript.Run("isArray", Array(objJSON))
-	End Function
-
-	Private Function GetArrayLength(objJSONArr)
-		GetArrayLength = pScript.Run("getArrayLength", Array(objJSONArr))
-	End Function
-
-	Private Function GetArrayItem(objJSONArr, intIndex)
-		If IsObject(pScript.Run("getArrayItem", Array(objJSONArr, intIndex))) Then
-			Set GetArrayItem = pScript.Run("getArrayItem", Array(objJSONArr, intIndex))
-		Else
-			GetArrayItem = pScript.Run("getArrayItem", Array(objJSONArr, intIndex))
-		End If
-	End Function
-
-	Private Function GetArrayItemType(objJSONArr, intIndex)
-		If pScript.Run("getArrayItemType", Array(objJSONArr, intIndex)) = "object" Then
-			If TypeName(GetArrayItem(objJSONArr, intIndex)) = "Null" Then
-				GetArrayItemType = "null"
-			ElseIf IsArray(GetArrayItem(objJSONArr, intIndex)) Then
-				GetArrayItemType = "array"
-			Else
-				GetArrayItemType = "object"
-			End If
-		Else
-			GetArrayItemType = pScript.Run("getArrayItemType", Array(objJSONArr, intIndex))
-		End If
-	End Function
-
-	Private Function CreateJSONObject(objJSON)
-		Dim objJsonObj: Set objJsonObj = New v_JSON
+	Private Function JSONObject(objJSON)
+		Dim objJsonObj
+		Set objJsonObj = New v_JSON
 		objJsonObj.FromString pScript.Run("stringify", Array(objJSON))
-		Set CreateJSONObject = objJsonObj
+		Set JSONObject = objJsonObj
 	End Function
 
-	Private Function CreateJSONArray(objJSONArr)
-		Dim objArray, _
+	Private Function JSONArray(objJSONArr)
+		Dim arrArray(), _
 			i
 
-		Set objArray = CreateObject("System.Collections.ArrayList")
+		ReDim arrArray(pScript.Run("getArrayLength", Array(objJSONArr)) - 1)
 
-		For i = 0 To GetArrayLength(objJSONArr) - 1
-			Select Case GetArrayItemType(objJSONArr, i)
+		For i = 0 To UBound(arrArray)
+			Select Case pScript.Run("getArrayItemType", Array(objJSONArr, i))
 				Case "object":
-					objArray.Add CreateJSONObject(GetArrayItem(objJSONArr, i))
+					Set arrArray(i) = JSONObject(pScript.Run("getArrayItem", Array(objJSONArr, i)))
 				Case "array":
-					objArray.Add CreateJSONArray(GetArrayItem(objJSONArr, i))
+					arrArray(i) = JSONArray(pScript.Run("getArrayItem", Array(objJSONArr, i)))
 				Case "null":
-					objArray.Add Null
+					arrArray(i) = Null
 				Case "string", "number", "boolean":
-					objArray.Add GetArrayItem(objJSONArr, i)
+					arrArray(i) = pScript.Run("getArrayItem", Array(objJSONArr, i))
 			End Select
 		Next
 
-		Set CreateJSONArray = objArray
-	End Function
-
-	Private Function VerifyContent(varContent)
-		Dim blnVerified 
-
-		Select Case TypeName(varContent)
-			Case "String", "Null", "Boolean", "Integer", "Long", "Single", "Double", "Date", "Currency":
-				blnVerified = True
-			Case "v_JSON":
-				Dim key
-
-				blnVerified = True
-
-				For Each key in varContent.Keys()
-					If Not VerifyContent(varContent.Item(key)) Then
-						blnVerified = False
-						Exit For
-					End If
-				Next
-			Case "ArrayList":
-				Dim i
-
-				blnVerified = True
-
-				For i = 0 To varContent.Count - 1
-					If Not VerifyContent(varContent.Item(i)) Then
-						blnVerified = False
-						Exit For
-					End If
-				Next
-			Case Else:
-				blnVerified = False
-		End Select
-
-		VerifyContent = blnVerified
-	End Function
-
-	Private Function SearchContent(varContent, strKey)
-		Dim varReturn
-
-		If TypeName(varContent) = "v_JSON" Then
-			If varContent.Exists(strKey, False) Then
-				If IsObject(varContent.Item(strKey)) Then
-					Set SearchContent = varContent.Item(strKey)
-					Exit Function
-				Else
-					SearchContent = varContent.Item(strKey)
-					Exit Function
-				End If
-			Else
-				Dim key
-
-				For Each key in varContent.Keys()
-					If TypeName(varContent.Item(key)) = "v_JSON" Or TypeName(varContent.Item(key)) = "ArrayList" Then
-						If IsObject(SearchContent(varContent.Item(key), strKey)) Then
-							Set SearchContent = SearchContent(varContent.Item(key), strKey)
-							Exit Function
-						Else
-							varReturn = SearchContent(varContent.Item(key), strKey)
-
-							If Not IsEmpty(varReturn) Then
-								SearchContent = varReturn
-								Exit Function
-							End If
-						End If
-					End If
-				Next
-			End If 
-		ElseIf TypeName(varContent) = "ArrayList" Then
-			Dim i
-
-			For i = 0 To varContent.Count - 1
-				If TypeName(varContent.Item(i)) = "v_JSON" Or TypeName(varContent.Item(i)) = "ArrayList" Then
-					If IsObject(SearchContent(varContent.Item(i), strKey)) Then
-						Set SearchContent = SearchContent(varContent.Item(i), strKey)
-						Exit Function
-					Else
-						varReturn = SearchContent(varContent.Item(i), strKey)
-
-						If Not IsEmpty(varReturn) Then
-							SearchContent = varReturn
-							Exit Function
-						End If
-					End If
-				End If
-			Next
-		End If
+		JSONArray = arrArray
 	End Function
 
 	Private Sub Class_Terminate()
 		Set pScript = Nothing
-    		Set pJSON = Nothing
 	End Sub 
 End Class
+
+If WScript.ScriptName = "v_JSON.vbs" Then
+
+End If
