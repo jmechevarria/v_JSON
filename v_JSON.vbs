@@ -40,7 +40,6 @@ Class v_JSON
 
 	' Properties
 
-
 	Public Default Property Get Item(strKey)
 		If pScript.Run("getItemType", Array(strKey)) = "object" Then
 			Set Item = Deserialize(pScript.Run("getItemValue", Array(strKey)))

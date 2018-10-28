@@ -92,16 +92,50 @@ Class v_Script
 
 		If Right(strProcedure, 2) = "()" Then strProcedure = Left(strProcedure, Len(strProcedure) - 2)
 
+        'This variable is used to create the string of arguments passed to the pScriptEngine variable 
+        '(which is the one that ultimatelly executes the function)
 		strArgs = "("
 
-		If IsArray(arrArgs) Then
+        Dim itHasArgs ' <-- I ADDED THIS LINE
+        itHasArgs = false
+
+        'You'll notice in every v_JSON function that does not require arguments, 
+        'the Run(strProcedure, arrArgs) function gets called like this, for instance:
+         
+'	    Public Property Get Items()
+'		    Items = Deserialize(pScript.Run("getItems", Array())) <--SEE HERE HOW AN EMPTY ARRAY IS PASSED
+'	    End Property
+
+        'while if the function does require arguments, this happens, example:
+
+'       Public Function ValueExists(varValue, blnDeep)
+'		    ValueExists = pScript.Run("valueExists", Array(varValue, blnDeep)) <-- SEE HERE HOW A NON-EMPTY ARRAY IS PASSED
+'	    End Function
+		
+        'Here starts the problem because it will only execute line 119 IF THERE ARE ARGUMENTS, which there aren't with some functions, as
+        'explained before
+        If IsArray(arrArgs) Then
 			For i = 0 to UBound(arrArgs)
 				strArgs = strArgs & "arrArgs(" & i & "), "
+                itHasArgs = true  ' <-- I ADDED THIS LINE
 			Next
 		End If
 
-		strArgs = Left(strArgs, Len(strArgs) - 2) & ")"
+        'causing strArgs to arrive to this point with only "("
 
+        If itHasArgs Then ' <-- I ADDED THIS LINE
+            strArgs = Left(strArgs, Len(strArgs) - 2) & ")"
+        Else ' <-- I ADDED THIS LINE
+		    strArgs = strArgs & ")" ' <-- I ADDED THIS LINE
+        End If ' <-- I ADDED THIS LINE
+
+        'in the original code only line 127 existed, this used to happen:
+        '1. Len(strArgs) = Len("(") = 1
+        '2. Len(strArgs) - 2 = -1
+        '3. Left(strArgs, -1) made it all explode since it can't stand that negative argument
+        
+        'and that is why some functions worked and some didn't
+ 
 		If TypeName(Eval("pScriptEngine." & strProcedure & strArgs)) = "JScriptTypeInfo" Then
 			Set Run = Eval("pScriptEngine." & strProcedure & strArgs)
 		Else
